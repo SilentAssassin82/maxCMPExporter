@@ -386,6 +386,7 @@ int	maxCMPExport::DoExport(const TCHAR *name,ExpInterface *ei,Interface *i, BOOL
 	FILE *file2;
 	int start_vert = 0;
 
+
 	char VMeshLibraryName[200];
  	Point3 vcenter;
 	
@@ -504,17 +505,9 @@ int	maxCMPExport::DoExport(const TCHAR *name,ExpInterface *ei,Interface *i, BOOL
 			Point3 BoundingBoxMaxx, BoundingBoxMinx, BoundingBoxMaxy, BoundingBoxMiny, BoundingBoxMaxz, BoundingBoxMinz;
 			Box3 Bounds;
 
-			//vmeshref.NumVert = nVerts;
-
-			
-			
-			//file2 = _tfopen ("___temp.vmref", "wb");
-
 			int bmaxx = 0;
 			list<MMESH *>::iterator j;
 
-			//for(int nMesh = 0; nMesh < nMeshes->GetTopLevelNodeCount(); nMesh++)
-			//{
 			list<MMESH *>::iterator i = meshList->begin();
 			MMESH * mesh = *i;
 			
@@ -529,15 +522,9 @@ int	maxCMPExport::DoExport(const TCHAR *name,ExpInterface *ei,Interface *i, BOOL
 			for (j = meshList->begin(); j != meshList->end(); j++)
 			{
 			vmeshref.NumMeshes = nMesh+1;
-			
 			}
-			//fclose (file2);
-						
+
 			Point3 vCenter;
-			
-
-
-			//nMeshes->GetTopLevelNode(mesh);
 			
 			pMesh->GetBoundingBox(Bounds);
 			BoundingBoxMaxx = Bounds.pmax;
@@ -564,12 +551,6 @@ int	maxCMPExport::DoExport(const TCHAR *name,ExpInterface *ei,Interface *i, BOOL
 			vmeshrefb.Center_Z = vCenter.z;
 			vmeshrefb._Radius = Bounds.Width();
 
-			//vmeshref.vCenter = ;
-			//mesh->vmeshre[nMesh].BoundingBoxMaxX = bmaxx;
-			//memcpy(&vmeshref, 0, sizeof(vmeshref));
-			//
-
-
 		}
 	}
 	nMeshes->ReleaseIGame();
@@ -581,18 +562,11 @@ int	maxCMPExport::DoExport(const TCHAR *name,ExpInterface *ei,Interface *i, BOOL
 	vmeshref.StartIndex = start_vert;
 	vmeshrefb.Num_Index += (*j)->nTris * 3;
 	vmeshrefb.Num_Vert  += (*j)->nVerts;
-	//vmeshrefb.Num_Meshes++;
-	//vmeshref.NumMeshes = nMesh+1;
 	}
 
 	vmeshrefb.Header_Size = 60;
-	vmeshrefb.VMesh_LibId = fl_crc32(mesh->nname);
+	vmeshrefb.VMesh_LibId = fl_crc32(VMeshLibraryName);
 	vmeshrefb.Num_Meshes = vmeshref.NumMeshes;
-	//vmeshrefb.Num_Index = vmeshref.NumIndex;
-	//vmeshrefb.Num_Vert = vmeshref.NumVert;
-
-			// memmove(&vmeshrefb, 0, sizeof(vmeshref));
-			
 
 
 	fwrite(&vmeshrefb, sizeof(vmeshrefb), 1, file2);
@@ -607,9 +581,6 @@ int	maxCMPExport::DoExport(const TCHAR *name,ExpInterface *ei,Interface *i, BOOL
 		MessageBox(0,"Could not open export file for some reason, check if it's not being used by another application!","Error exporting VMS file",MB_ICONERROR);
         return -1;
 		}
-
-	// save VMS here!
-	//list<MMESH *>::iterator j;
 
 	// save header
 	vmsHeader header;	memset(&header, 0, sizeof(header));
@@ -636,7 +607,6 @@ int	maxCMPExport::DoExport(const TCHAR *name,ExpInterface *ei,Interface *i, BOOL
 	fwrite (&header, sizeof(header), 1, file);
 
 	// save each mesh entry
-	//int start_vert = 0;
 	for (j = meshList->begin(); j != meshList->end(); j++)
 	{
 		vmsMesh vmesh;	memset(&vmesh, 0, sizeof(vmesh));

@@ -129,7 +129,15 @@ struct vmsMesh
 	short padding;	// = 0xcc, for dword allignment, apparently
 };
 
+struct GroupA
+{
+	int gChildren;
+	Tab<IGameNode*> NodeInfo;
+	TCHAR * gname;
 
+	void fromNode(IGameNode *pNode);
+
+};
 
 struct VMeshRef
 {
@@ -172,6 +180,8 @@ struct MMESH
 
 	IGameMesh *pMesh; // 3ds max mesh object
 };
+
+
 class CMaxPlugInApp : public CWinApp
 {
 

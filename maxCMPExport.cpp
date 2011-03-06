@@ -123,6 +123,11 @@ public:
 
 		//TSTR fileName;
 		TSTR splitPath;
+
+		IXMLDOMDocument * pXMLDoc;
+		IXMLDOMNode * pRoot;		//this is our root node 	
+		CComPtr<IXMLDOMNode> iGameNode;	//the IGame child - which is the main node
+		CComPtr<IXMLDOMNode> rootNode;
 		
 		int				ExtCount();					// Number of extensions supported
 		const TCHAR *	Ext(int n);					// Extension #n (i.e. "3DS")
@@ -136,11 +141,19 @@ public:
 		void			ShowAbout(HWND hWnd);		// Show DLL's "About..." box
 		void			ShowOptions(HWND hWnd);
 
+		void ExportNodeInfo(IGameNode * pMesh);
+		BOOL ExportGroup(IGameNode * pMesh);
+		BOOL ExportRootMesh(IGameNode * pMesh);
+		BOOL	nodeEnum(INode* node);
+		void	PreProcess(INode* node, int& nodeCount);
 		BOOL SupportsOptions(int ext, DWORD options);
 		int				DoExport(const TCHAR *name,ExpInterface *ei,Interface *i, BOOL suppressPrompts=FALSE, DWORD options=0);
 		int staticFrame;
 		int cS;
 		int Bounds(float);
+		int			nTotalNodeCount;
+		int			nCurNode;
+		Tab<IGameNode*>Meshes;
 
 	maxCMPExport();
 	~maxCMPExport();
@@ -151,6 +164,7 @@ public:
 	TSTR	GetCfgFilename();
 	BOOL	ReadConfig();
 	void	WriteConfig();
+
 	
 
 private:
@@ -344,58 +358,293 @@ void normalize (VECTOR * dest, VECTOR * src)
 	
 	dest->vec = src->vec / len;
 }
-
 int iLODs;
-
-int	maxCMPExport::DoExport(const TCHAR *name,ExpInterface *ei,Interface *i, BOOL suppressPrompts, DWORD options)
+IGameMaterial *pMaterial;
+GroupA* gNode;
+BOOL maxCMPExport::ExportGroup(IGameNode * pMesh)
 {
 	VMeshRef vmeshref;
-	//VMeshRef vmeshref;
-   
-	// Set a global prompt display switch
-	exportSelected = (options & SCENE_EXPORT_SELECTED) ? TRUE : FALSE;
-
-	// Grab the interface pointer.
-	ip = i;
-
-	// Get the options the user selected the last time
-	ReadConfig();
-
-	
-
-	ExportOptions OptionsDlgExport(NULL);
-
-	OptionsDlgExport.DoModal();
-	if(!OptionsDlgExport.bDoExport)
-		return 1; // abort by user
-
-	
+	VMeshRefBounds vmeshrefb;
 	IGameScene *nMeshes;
 	nMeshes = GetIGameInterface();
+	nMeshes->SetStaticFrame(0);
+	ExportOptions OptionsDlgExport(NULL);
 
-	IGameConversionManager * cm = GetConversionManager();
-	cm->SetCoordSystem(IGameConversionManager::IGAME_D3D);
-	nMeshes->InitialiseIGame(false); // true- we want selected only - false we want all!
+	meshList = new list<MMESH *>;
+	MMESH * mesh;
+		
+	char VMeshLibraryName[200];
 
+	FILE *file2;
+	int start_vert = 0;
+
+	Meshes = nMeshes->GetIGameNodeByType(IGameObject::IGAME_MESH);
+	for(int nMesh = 0; nMesh < Meshes.Count(); nMesh++)
+		{	
+
+		mesh = new MMESH;	memset(mesh, 0, sizeof(MMESH));
+
+		mesh->nname = gNode->gname;	  
+		IGameObject *pModel;		
+		pModel=pMesh->GetIGameObject();
+		IGameMesh *gMesh =(IGameMesh*)Meshes[nMesh]->GetIGameObject();		
+
+		if (gMesh->GetIGameType()==IGameObject::IGAME_MESH)		
+		{	
+		IGameNode *pMesh = (IGameNode*)gMesh;
+		meshList->push_back(mesh);			
+		gMesh->InitializeData();
+
+		IGameMaterial *pMaterial=NULL;
+		int faces = gMesh->GetNumberOfFaces();
+		for(int i=0; i<faces; i++)
+			{
+			pMaterial=gMesh->GetMaterialFromFace(i);	
+			int SubMat = pMaterial->GetSubMaterialCount();
+			for(int i=0; i<SubMat;i++)
+			{
+			IGameMaterial * subMat;
+			subMat = pMaterial->GetSubMaterial(i);
+			}
+			mesh->material = pMaterial->GetMaterialName();
+			IGameMesh *gMesh = (IGameMesh*)pMesh;			
+			mesh->pMesh = gMesh;
+		}
+		int nTris = gMesh->GetNumberOfFaces();
+		mesh->t = new vmsTri[nTris];
+		int nVerts = nTris*3;
+		mesh->v = new vmsVertEnh[nVerts];
+		mesh->vc = new vmsVertColor[nVerts];
+					
+		uint iVertexDuplicates = 0;
+
+			
+			for (int nTri = 0; nTri < nTris; nTri++)
+			{
+				FaceEx * pTriangle = gMesh->GetFace(nTri);
+				for(int i=0;i<3;i++)
+				{
+				int nVert = (nTri*3 + i) - iVertexDuplicates;
+			
+					Point3 vertice, normal, binormal, tangent, color, BoundingBoxMaxx, BoundingBoxMinx, BoundingBoxMaxy, BoundingBoxMiny, BoundingBoxMaxz, BoundingBoxMinz;
+					Point2 uv, uvfl;
+					Box3 Bounds;
+					//float BoundingBoxMaxX = 1.0f;
+									
+					gMesh->GetVertex(pTriangle->vert[i], vertice);
+					gMesh->GetTexVertex(pTriangle->texCoord[i], uv);
+					gMesh->GetNormal(pTriangle->norm[i], normal);
+
+					// before assigning the vert, check existing verts if there is a duplicate
+					bool bDuplicate = false;
+					for(int nVertB=0; nVertB < nVert; nVertB++)
+					{
+						if(mesh->v[nVertB].vert == vertice &&
+							mesh->v[nVertB].normal == normal &&
+							mesh->v[nVertB].uv == uv)
+						{
+							// match!
+							// assign triangle corner to found vertex index
+							mesh->t[pTriangle->meshFaceIndex].vertice[i] = nVertB;
+							iVertexDuplicates++;
+							bDuplicate = true;
+							break;
+						}
+					}
+					if(bDuplicate)
+						continue;
+					
+
+					mesh->t[pTriangle->meshFaceIndex].vertice[i] = nVert;
+
+					mesh->v[nVert].vert = vertice;
+					mesh->v[nVert].normal = normal;
+					mesh->v[nVert].uv = uv;
+				
+					int iTBindex = gMesh->GetFaceVertexTangentBinormal(pTriangle->meshFaceIndex, i);
+					if(iTBindex != -1)
+					{
+						tangent = gMesh->GetTangent(iTBindex);
+						binormal = gMesh->GetBinormal(iTBindex);
+						mesh->v[nVert].tangent = tangent;
+						mesh->v[nVert].binormal = binormal;
+					}
+					float alpha = 1.0f;
+					int iVCindex = gMesh->GetFaceVertex(pTriangle->meshFaceIndex, i);		
+					if(iVCindex != -1)
+					{
+						alpha = gMesh->GetAlphaVertex(pTriangle->alpha[i]);
+						color = gMesh->GetColorVertex(pTriangle->color[i]);
+						mesh->vc[nVert].vert = vertice;
+						mesh->vc[nVert].diffuse = (DWORD)(alpha * 255)<<24 | (DWORD)(color.x * 255)<<16 | (DWORD)(color.y *255)<<8 | (DWORD)(color.z * 255);
+						mesh->vc[nVert].uv = uv;
+					}
+					else
+					{
+						mesh->v[nVert].tangent = Point3(0,0,1);
+						mesh->v[nVert].binormal = Point3(1,0,0);
+					}
+				}
+				mesh->nVerts = nVerts - iVertexDuplicates;
+				mesh->nTris = nTris;
+				}
+				Point3 BoundingBoxMaxx, BoundingBoxMinx, BoundingBoxMaxy, BoundingBoxMiny, BoundingBoxMaxz, BoundingBoxMinz;
+				Box3 Bounds;
+
+				int bmaxx = 0;
+				list<MMESH *>::iterator j;
+
+				list<MMESH *>::iterator i = meshList->begin();
+				MMESH * mesh = *i;
+							
+				strcpy (VMeshLibraryName, mesh->nname);
+				string sLod = ".lod";
+				sLod += (char)(48 + iLODs);
+				sLod += ".vms";
+				strcat (VMeshLibraryName, sLod.c_str());
+				
+				memset(&vmeshrefb, 0,sizeof(vmeshrefb));
+				for (j = meshList->begin(); j != meshList->end(); j++)
+				{
+				vmeshref.NumMeshes = nMesh+1;
+				}
+				Point3 vCenter;
+				
+				pModel->GetBoundingBox(Bounds);
+				BoundingBoxMaxx = Bounds.pmax;
+				vmeshrefb.bmaxx = BoundingBoxMaxx.x;
+				vmeshref.BoundingBoxMaxX  = vmeshrefb.bmaxx;
+				BoundingBoxMinx = Bounds.pmin;
+				vmeshrefb.bminx = BoundingBoxMinx.x;
+				vmeshref.BoundingBoxMinX  = vmeshrefb.bminx;
+				BoundingBoxMaxy = Bounds.pmax;
+				vmeshrefb.bmaxy = BoundingBoxMaxy.y;
+				vmeshref.BoundingBoxMaxY  = vmeshrefb.bmaxy;
+				BoundingBoxMiny = Bounds.pmin;
+				vmeshrefb.bminy = BoundingBoxMiny.y;
+				vmeshref.BoundingBoxMinY  = vmeshrefb.bminy;
+				BoundingBoxMaxz = Bounds.pmax;
+				vmeshrefb.bmaxz = BoundingBoxMaxz.z;
+				vmeshref.BoundingBoxMaxZ  = vmeshrefb.bmaxz;
+				BoundingBoxMinz = Bounds.pmin;
+				vmeshrefb.bminz = BoundingBoxMinz.z;
+				vmeshref.BoundingBoxMinZ  = vmeshrefb.bminz;
+				vCenter = Bounds.Center();
+				vmeshrefb.Center_X = vCenter.x;
+				vmeshrefb.Center_Y = vCenter.y;
+				vmeshrefb.Center_Z = vCenter.z;
+				vmeshrefb._Radius = Bounds.Width();	
+				}
+			}
+			nMeshes->ReleaseIGame();
+			file2 = _tfopen ("___temp.vmref", "wb");
+
+			list<MMESH *>::iterator j;
+			for (j = meshList->begin(); j != meshList->end(); j++)
+			{
+			vmeshref.StartIndex = start_vert;
+			vmeshrefb.Num_Index += (*j)->nTris * 3;
+			vmeshrefb.Num_Vert  += (*j)->nVerts;
+			}
+			vmeshrefb.Header_Size = 60;
+			vmeshrefb.VMesh_LibId = fl_crc32(VMeshLibraryName);
+			vmeshrefb.Num_Meshes = vmeshref.NumMeshes;
+
+			fwrite(&vmeshrefb, sizeof(vmeshrefb), 1, file2);
+			fclose (file2);
+
+			FILE *file;
+
+			file = _tfopen ("___temp.vms", "wb");
+			
+			if (!file)
+			{
+				MessageBox(0,"Could not open export file for some reason, check if it's not being used by another application!","Error exporting VMS file",MB_ICONERROR);
+				return -1;
+			}
+			// save header
+			vmsHeader header;	memset(&header, 0, sizeof(header));
+			header.unk1 = 1;
+			header.unk2 = 4;
+			
+			//header.nMeshes = nMeshes;
+			header.nMeshes = 0;
+			for (j = meshList->begin(); j != meshList->end(); j++)
+				header.nMeshes++;
+
+			if(OptionsDlgExport.bTangents)
+				header.FVF = 0x412;
+			else if(OptionsDlgExport.bVColor)
+				header.FVF = 0x142;
+			else
+				header.FVF = 0x112;
+			
+			for (j = meshList->begin(); j != meshList->end(); j++)
+			{
+				header.nRefVertices += (*j)->nTris * 3;
+				header.nVertices += (*j)->nVerts;
+			}
+			fwrite (&header, sizeof(header), 1, file);
+
+			// save each mesh entry
+			for (j = meshList->begin(); j != meshList->end(); j++)
+			{
+				vmsMesh vmesh;	memset(&vmesh, 0, sizeof(vmesh));
+				vmesh.material = fl_crc32( (*j)->material );
+				vmesh.start_vert_number = start_vert;
+				vmesh.end_vert_number = start_vert + (*j)->nVerts - 1;
+				vmesh.number_of_vert_references = (*j)->nTris * 3;
+				vmesh.padding = 0xcc;
+				fwrite(&vmesh, sizeof(vmesh), 1, file);
+
+				start_vert += (*j)->nVerts;
+			}
+			// save triangles
+			for (j = meshList->begin(); j != meshList->end(); j++)
+				fwrite((*j)->t, sizeof(vmsTri) * (*j)->nTris, 1, file);
+
+			// save vertices
+			for (j = meshList->begin(); j != meshList->end(); j++)
+			{
+				if(OptionsDlgExport.bTangents)
+					fwrite((*j)->v, sizeof(vmsVertEnh) * (*j)->nVerts, 1, file);
+				else if(OptionsDlgExport.bVColor)
+					fwrite((*j)->vc, sizeof(vmsVertColor) * (*j)->nVerts, 1, file);
+				else
+					for(int p=0;p<(*j)->nVerts;p++)
+						fwrite((*j)->v + p, sizeof(vmsVert), 1, file);		
+			}
+
+			// fclose
+			fclose (file);
+			mesh = new MMESH;	memset(mesh, 0, sizeof(MMESH));
+			memset(&vmeshrefb, 0,sizeof(vmeshrefb));
+	
+	return 1;
+}
+BOOL maxCMPExport::ExportRootMesh(IGameNode * pMesh)
+{
+
+	ExportOptions OptionsDlgExport(NULL);
+	
+	gNode = new GroupA;	memset(gNode, 0, sizeof(GroupA));
+	
+	IGameScene *nMeshes;
+	VMeshRef vmeshref;
+	VMeshRefBounds vmeshrefb;
+	
+	nMeshes = GetIGameInterface();
 
 	nMeshes->SetStaticFrame(0);
 	meshList = new list<MMESH *>;
 	MMESH * mesh;
-
-	VMeshRefBounds vmeshrefb;
 	FILE *file2;
+	char VMeshLibraryName[200];
 	int start_vert = 0;
 
-
-	char VMeshLibraryName[200];
- 	Point3 vcenter;
-	
-
 	for(int nMesh = 0; nMesh < nMeshes->GetTopLevelNodeCount(); nMesh++)
-	{
-		
+		{
 		mesh = new MMESH;	memset(mesh, 0, sizeof(MMESH));
-
 
 		IGameNode *pMesh = nMeshes->GetTopLevelNode(nMesh);
 		IGameObject *pModel;
@@ -414,6 +663,309 @@ int	maxCMPExport::DoExport(const TCHAR *name,ExpInterface *ei,Interface *i, BOOL
 
 			IGameMesh *pMesh = (IGameMesh*)pModel;
 
+			mesh->pMesh = pMesh;
+		
+			// triangles
+			int nTris = pMesh->GetNumberOfFaces();
+			mesh->t = new vmsTri[nTris];
+			int nVerts = nTris*3;
+			mesh->v = new vmsVertEnh[nVerts];
+			mesh->vc = new vmsVertColor[nVerts];
+						
+			uint iVertexDuplicates = 0;
+
+			for (int nTri = 0; nTri < nTris; nTri++)
+			{
+				FaceEx * pTriangle = pMesh->GetFace(nTri);
+				
+				for(int i=0;i<3;i++)
+				{
+					int nVert = (nTri*3 + i) - iVertexDuplicates;
+			
+					Point3 vertice, normal, binormal, tangent, color, BoundingBoxMaxx, BoundingBoxMinx, BoundingBoxMaxy, BoundingBoxMiny, BoundingBoxMaxz, BoundingBoxMinz;
+					Point2 uv, uvfl;
+					Box3 Bounds;
+					//float BoundingBoxMaxX = 1.0f;
+									
+					pMesh->GetVertex(pTriangle->vert[i], vertice);
+					pMesh->GetTexVertex(pTriangle->texCoord[i], uv);
+					pMesh->GetNormal(pTriangle->norm[i], normal);
+
+					// before assigning the vert, check existing verts if there is a duplicate
+					bool bDuplicate = false;
+					for(int nVertB=0; nVertB < nVert; nVertB++)
+					{
+						if(mesh->v[nVertB].vert == vertice &&
+							mesh->v[nVertB].normal == normal &&
+							mesh->v[nVertB].uv == uv)
+						{
+							// match!
+							// assign triangle corner to found vertex index
+							mesh->t[pTriangle->meshFaceIndex].vertice[i] = nVertB;
+							iVertexDuplicates++;
+							bDuplicate = true;
+							break;
+						}
+					}
+					if(bDuplicate)
+						continue;
+					
+					mesh->t[pTriangle->meshFaceIndex].vertice[i] = nVert;
+
+					mesh->v[nVert].vert = vertice;
+					mesh->v[nVert].normal = normal;
+					mesh->v[nVert].uv = uv;
+					
+					int iTBindex = pMesh->GetFaceVertexTangentBinormal(pTriangle->meshFaceIndex, i);
+					if(iTBindex != -1)
+					{
+						tangent = pMesh->GetTangent(iTBindex);
+						binormal = pMesh->GetBinormal(iTBindex);
+						mesh->v[nVert].tangent = tangent;
+						mesh->v[nVert].binormal = binormal;
+					}
+					float alpha = 1.0f;
+					int iVCindex = pMesh->GetFaceVertex(pTriangle->meshFaceIndex, i);		
+				    if(iVCindex != -1)
+					{
+						alpha = pMesh->GetAlphaVertex(pTriangle->alpha[i]);
+						color = pMesh->GetColorVertex(pTriangle->color[i]);
+					    mesh->vc[nVert].vert = vertice;
+						mesh->vc[nVert].diffuse = (DWORD)(alpha * 255)<<24 | (DWORD)(color.x * 255)<<16 | (DWORD)(color.y *255)<<8 | (DWORD)(color.z * 255);
+					    mesh->vc[nVert].uv = uv;
+					}
+					else
+					{
+						mesh->v[nVert].tangent = Point3(0,0,1);
+						mesh->v[nVert].binormal = Point3(1,0,0);
+					}
+				}
+			mesh->nVerts = nVerts - iVertexDuplicates;
+			mesh->nTris = nTris;
+			}
+			Point3 BoundingBoxMaxx, BoundingBoxMinx, BoundingBoxMaxy, BoundingBoxMiny, BoundingBoxMaxz, BoundingBoxMinz;
+			Box3 Bounds;
+
+			int bmaxx = 0;
+			list<MMESH *>::iterator j;
+
+			list<MMESH *>::iterator i = meshList->begin();
+			MMESH * mesh = *i;
+	
+			strcpy (VMeshLibraryName, mesh->nname);
+			string sLod = ".lod";
+			sLod += (char)(48 + iLODs);
+			sLod += ".vms";
+			strcat (VMeshLibraryName, sLod.c_str());
+			
+			memset(&vmeshrefb, 0,sizeof(vmeshrefb));
+			for (j = meshList->begin(); j != meshList->end(); j++)
+			{
+			vmeshref.NumMeshes = nMesh+1;
+			}
+			Point3 vCenter;
+			
+			pMesh->GetBoundingBox(Bounds);
+			BoundingBoxMaxx = Bounds.pmax;
+			vmeshrefb.bmaxx = BoundingBoxMaxx.x;
+			vmeshref.BoundingBoxMaxX  = vmeshrefb.bmaxx;
+			BoundingBoxMinx = Bounds.pmin;
+			vmeshrefb.bminx = BoundingBoxMinx.x;
+			vmeshref.BoundingBoxMinX  = vmeshrefb.bminx;
+			BoundingBoxMaxy = Bounds.pmax;
+			vmeshrefb.bmaxy = BoundingBoxMaxy.y;
+			vmeshref.BoundingBoxMaxY  = vmeshrefb.bmaxy;
+			BoundingBoxMiny = Bounds.pmin;
+			vmeshrefb.bminy = BoundingBoxMiny.y;
+			vmeshref.BoundingBoxMinY  = vmeshrefb.bminy;
+			BoundingBoxMaxz = Bounds.pmax;
+			vmeshrefb.bmaxz = BoundingBoxMaxz.z;
+			vmeshref.BoundingBoxMaxZ  = vmeshrefb.bmaxz;
+			BoundingBoxMinz = Bounds.pmin;
+			vmeshrefb.bminz = BoundingBoxMinz.z;
+			vmeshref.BoundingBoxMinZ  = vmeshrefb.bminz;
+			vCenter = Bounds.Center();
+			vmeshrefb.Center_X = vCenter.x;
+			vmeshrefb.Center_Y = vCenter.y;
+			vmeshrefb.Center_Z = vCenter.z;
+			vmeshrefb._Radius = Bounds.Width();
+		}
+	}
+	nMeshes->ReleaseIGame();
+	file2 = _tfopen ("___temp.vmref", "wb");
+
+	list<MMESH *>::iterator j;
+	for (j = meshList->begin(); j != meshList->end(); j++)
+	{
+	vmeshref.StartIndex = start_vert;
+	vmeshrefb.Num_Index += (*j)->nTris * 3;
+	vmeshrefb.Num_Vert  += (*j)->nVerts;
+	}
+	vmeshrefb.Header_Size = 60;
+	vmeshrefb.VMesh_LibId = fl_crc32(VMeshLibraryName);
+	vmeshrefb.Num_Meshes = vmeshref.NumMeshes;
+
+
+	fwrite(&vmeshrefb, sizeof(vmeshrefb), 1, file2);
+	fclose (file2);
+
+	FILE *file;
+
+	file = _tfopen ("___temp.vms", "wb");
+	
+    if (!file)
+	{
+		MessageBox(0,"Could not open export file for some reason, check if it's not being used by another application!","Error exporting VMS file",MB_ICONERROR);
+        return -1;
+	}
+	// save header
+	vmsHeader header;	memset(&header, 0, sizeof(header));
+	header.unk1 = 1;
+	header.unk2 = 4;
+	
+	//header.nMeshes = nMeshes;
+	header.nMeshes = 0;
+	for (j = meshList->begin(); j != meshList->end(); j++)
+		header.nMeshes++;
+
+	if(OptionsDlgExport.bTangents)
+		header.FVF = 0x412;
+	else if(OptionsDlgExport.bVColor)
+		header.FVF = 0x142;
+	else
+		header.FVF = 0x112;
+	
+	for (j = meshList->begin(); j != meshList->end(); j++)
+	{
+		header.nRefVertices += (*j)->nTris * 3;
+		header.nVertices += (*j)->nVerts;
+	}
+	fwrite (&header, sizeof(header), 1, file);
+
+	// save each mesh entry
+	for (j = meshList->begin(); j != meshList->end(); j++)
+	{
+		vmsMesh vmesh;	memset(&vmesh, 0, sizeof(vmesh));
+		vmesh.material = fl_crc32( (*j)->material );
+		vmesh.start_vert_number = start_vert;
+		vmesh.end_vert_number = start_vert + (*j)->nVerts - 1;
+		vmesh.number_of_vert_references = (*j)->nTris * 3;
+		vmesh.padding = 0xcc;
+		fwrite(&vmesh, sizeof(vmesh), 1, file);
+
+		start_vert += (*j)->nVerts;
+	}
+	// save triangles
+	for (j = meshList->begin(); j != meshList->end(); j++)
+		fwrite((*j)->t, sizeof(vmsTri) * (*j)->nTris, 1, file);
+
+	// save vertices
+	for (j = meshList->begin(); j != meshList->end(); j++)
+	{
+		if(OptionsDlgExport.bTangents)
+			fwrite((*j)->v, sizeof(vmsVertEnh) * (*j)->nVerts, 1, file);
+		else if(OptionsDlgExport.bVColor)
+			fwrite((*j)->vc, sizeof(vmsVertColor) * (*j)->nVerts, 1, file);
+		else
+			for(int p=0;p<(*j)->nVerts;p++)
+				fwrite((*j)->v + p, sizeof(vmsVert), 1, file);		
+	}
+
+	// fclose
+	fclose (file);
+	
+return 1;
+}
+
+
+void maxCMPExport::ExportNodeInfo(IGameNode * pMesh)
+{
+
+	if(pMesh->IsGroupOwner())
+		ExportGroup(pMesh);
+	else
+		ExportRootMesh(pMesh);
+}
+
+
+
+	
+//GroupA *gNode;
+IGameMesh * gMesh;
+char VMeshLibraryName[200];
+	FILE *file2;
+int	maxCMPExport::DoExport(const TCHAR *name,ExpInterface *ei,Interface *i, BOOL suppressPrompts, DWORD options)
+{
+	VMeshRef vmeshref;
+	//VMeshRef vmeshref;
+	GroupA mGroup;
+   
+	// Set a global prompt display switch
+	exportSelected = (options & SCENE_EXPORT_SELECTED) ? TRUE : FALSE;
+
+	// Grab the interface pointer.
+	ip = i;
+
+	// Get the options the user selected the last time
+	ReadConfig();
+
+	
+
+	ExportOptions OptionsDlgExport(NULL);
+
+	OptionsDlgExport.DoModal();
+	if(!OptionsDlgExport.bDoExport)
+		return 1; // abort by user
+	
+	gNode = new GroupA;	memset(gNode, 0, sizeof(GroupA));
+	
+	IGameScene *nMeshes;
+	
+	
+	nMeshes = GetIGameInterface();
+
+	IGameConversionManager * cm = GetConversionManager();
+	cm->SetCoordSystem(IGameConversionManager::IGAME_D3D);
+	nMeshes->InitialiseIGame(false); // true- we want selected only - false we want all!
+
+	nMeshes->SetStaticFrame(0);
+	meshList = new list<MMESH *>;
+	MMESH * mesh;
+
+	VMeshRefBounds vmeshrefb;
+
+	int start_vert = 0;
+
+	 
+ 
+	Point3 vcenter;	
+	for(int nMesh = 0; nMesh < nMeshes->GetTopLevelNodeCount(); nMesh++)	
+		{		
+			mesh = new MMESH;	memset(mesh, 0, sizeof(MMESH));
+
+			IGameNode *pMesh = nMeshes->GetTopLevelNode(nMesh);	
+
+			mesh->nname = nMeshes->GetTopLevelNode(nMesh)->GetName();
+			gNode->gname = mesh->nname;
+
+			if(pMesh->IsTarget())
+			continue;
+			ExportNodeInfo(pMesh);
+
+/*			IGameObject *pModel;		
+			pModel=pMesh->GetIGameObject();		
+
+			if (pModel->GetIGameType()==IGameObject::IGAME_MESH)		
+			{			
+			meshList->push_back(mesh);			
+			pModel->InitializeData();			
+			IGameMaterial *pMaterial=NULL;			
+			pMaterial=pMesh->GetNodeMaterial();			
+			IGameTextureMap *pTexMap=NULL;			
+			if (pMaterial!=NULL) pTexMap=pMaterial->GetIGameTextureMap(0);			
+			mesh->material = pMaterial->GetMaterialName();  			
+			mesh->nname = pMesh->GetName();			
+			IGameMesh *pMesh = (IGameMesh*)pModel;			
 			mesh->pMesh = pMesh;
 		
 			// triangles
@@ -497,7 +1049,6 @@ int	maxCMPExport::DoExport(const TCHAR *name,ExpInterface *ei,Interface *i, BOOL
 						mesh->v[nVert].tangent = Point3(0,0,1);
 						mesh->v[nVert].binormal = Point3(1,0,0);
 					}
-
 				}
 			mesh->nVerts = nVerts - iVertexDuplicates;
 			mesh->nTris = nTris;
@@ -550,7 +1101,6 @@ int	maxCMPExport::DoExport(const TCHAR *name,ExpInterface *ei,Interface *i, BOOL
 			vmeshrefb.Center_Y = vCenter.y;
 			vmeshrefb.Center_Z = vCenter.z;
 			vmeshrefb._Radius = Bounds.Width();
-
 		}
 	}
 	nMeshes->ReleaseIGame();
@@ -638,12 +1188,13 @@ int	maxCMPExport::DoExport(const TCHAR *name,ExpInterface *ei,Interface *i, BOOL
 	}
 
 	// fclose
-	fclose (file);
-
+	fclose (file);*/
+	}
 
 	// -----------------------------------------------------------------------------------------
 	AFX_MANAGE_STATE(AfxGetStaticModuleState());
 
+	list<MMESH *>::iterator j;
     //
     // dialog
     //
@@ -671,7 +1222,55 @@ int	maxCMPExport::DoExport(const TCHAR *name,ExpInterface *ei,Interface *i, BOOL
 
 	return 1;
 }
+BOOL maxCMPExport::nodeEnum(INode* node) 
+{
+	if(exportSelected && node->Selected() == FALSE)
+		return TREE_CONTINUE;
 
+	nCurNode++;
+
+	if (ip->GetCancel())
+		return FALSE;
+
+	if (node->IsGroupHead())
+		{
+		}
+	if(!exportSelected || node->Selected()) 
+		{
+		ObjectState os = node->EvalWorldState(0); 
+		if (os.obj) 
+			{
+			// We look at the super class ID to determine the type of the object.
+			switch(os.obj->SuperClassID()) {
+			case GEOMOBJECT_CLASS_ID: 
+			if (os.obj->SuperClassID()==GEOMOBJECT_CLASS_ID); 
+			break;
+			}
+		}
+	}
+	for (int c = 0; c < node->NumberOfChildren(); c++) {
+		if (!nodeEnum(node->GetChildNode(c)))
+			return FALSE;
+	}
+	if (node->IsGroupHead()) {
+	}
+	return TRUE;
+}
+
+void maxCMPExport::PreProcess(INode* node, int& nodeCount)
+{
+	nodeCount++;
+	
+	// Add the nodes material to out material list
+	// Null entries are ignored when added...
+	//mtlList.AddMtl(node->GetMtl());
+
+	// For each child of this node, we recurse into ourselves 
+	// and increment the counter until no more children are found.
+	for (int c = 0; c < node->NumberOfChildren(); c++) {
+		PreProcess(node->GetChildNode(c), nodeCount);
+	}
+}
 
 BOOL maxCMPExport::SupportsOptions(int ext, DWORD options) {
 	assert(ext == 0);	// We only support one extension

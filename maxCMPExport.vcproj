@@ -202,7 +202,7 @@
 				Name="VCLinkerTool"
 				IgnoreImportLibrary="true"
 				AdditionalOptions="&#x0D;&#x0A;&#x0D;&#x0A;"
-				AdditionalDependencies="odbc32.lib odbccp32.lib comctl32.lib core.lib geom.lib gfx.lib mesh.lib maxutil.lib maxscrpt.lib paramblk2.lib igame.lib"
+				AdditionalDependencies="odbc32.lib odbccp32.lib comctl32.lib core.lib geom.lib gfx.lib mesh.lib maxutil.lib maxscrpt.lib paramblk2.lib igame.lib msxml2.lib"
 				OutputFile="C:\Program Files\Autodesk\3ds Max 9\plugins\maxCMPExport.dle"
 				LinkIncremental="2"
 				SuppressStartupBanner="true"

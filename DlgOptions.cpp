@@ -265,6 +265,7 @@ END_MESSAGE_MAP()
 //======================================================================
 // OnInitDialog
 //======================================================================
+IGameNode *pMesh;
 BOOL cDlgOptions::OnInitDialog() 
 {
 	CDialog::OnInitDialog();
@@ -276,6 +277,8 @@ BOOL cDlgOptions::OnInitDialog()
     CheckDlgButton (IDC_BTMESHES, TRUE);
     CheckDlgButton (IDC_BTMATERIALS, TRUE);
 */	
+
+
 
 	tree = (CTreeCtrl *) GetDlgItem(IDC_TREE);
 	utf = new UTF();

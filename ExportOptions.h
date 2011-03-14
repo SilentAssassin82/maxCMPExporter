@@ -30,4 +30,5 @@ public:
 	BOOL bVColor;
 	EXPORT_CMPNT_OPTION eRadioCmpnts;
 	int iLOD;
+	afx_msg void OnBnClickedTangents();
 };

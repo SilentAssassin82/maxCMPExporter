@@ -36,6 +36,7 @@ void ExportOptions::DoDataExchange(CDataExchange* pDX)
 
 
 BEGIN_MESSAGE_MAP(ExportOptions, CDialog)
+	ON_BN_CLICKED(IDC_TANGENTS, &ExportOptions::OnBnClickedTangents)
 END_MESSAGE_MAP()
 
 // ExportOptions-Meldungshandler
@@ -53,4 +54,9 @@ void ExportOptions::OnCancel()
 	CDialog::OnCancel();
 
 	bDoExport = false;
+}
+
+void ExportOptions::OnBnClickedTangents()
+{
+	// TODO: Add your control notification handler code here
 }

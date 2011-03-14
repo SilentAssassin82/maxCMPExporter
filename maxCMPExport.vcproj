@@ -170,7 +170,7 @@
 				AdditionalIncludeDirectories="&quot;C:\Program Files\Autodesk\3ds Max 9 SDK\maxsdk&quot;;.\midl\Win32;&quot;C:\Program Files\Autodesk\3ds Max 9 SDK\maxsdk\include&quot;;&quot;C:\Program Files\Autodesk\3ds Max 9 SDK\maxsdk\include\IGame&quot;;&quot;C:\Program Files\Autodesk\3ds Max 9 SDK\maxsdk\lib&quot;"
 				PreprocessorDefinitions="_HYBRID;IS_HYBRID;_SECURE_SCL=0;WIN32;_WINDOWS;_CRT_SECURE_NO_DEPRECATE;_CRT_NONSTDC_NO_DEPRECATE;_SCL_SECURE_NO_DEPRECATE;ISOLATION_AWARE_ENABLED=1"
 				ExceptionHandling="2"
-				BasicRuntimeChecks="0"
+				BasicRuntimeChecks="3"
 				RuntimeLibrary="0"
 				BufferSecurityCheck="true"
 				EnableEnhancedInstructionSet="1"
@@ -774,5 +774,9 @@
 		</File>
 	</Files>
 	<Globals>
+		<Global
+			Name="RESOURCE_FILE"
+			Value="maxCMPExport.rc"
+		/>
 	</Globals>
 </VisualStudioProject>

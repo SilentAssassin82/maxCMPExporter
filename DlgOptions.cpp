@@ -1,6 +1,11 @@
 #include "stdafx.h"
 #include "resource.h"
 #include "DlgOptions.h"
+#include "fstream.h"
+#include <iostream>
+#include <vector>
+#include <wchar.h>
+#include <io.h>
 
 #include "maxCMPExport.h"
 #include "UTF.h"
@@ -12,6 +17,8 @@
 #undef THIS_FILE
 static char THIS_FILE[] = __FILE__;
 #endif
+
+//std::list<GLIST *> * nodeList;
 
 void cDlgOptions::calculate_position( float * pos, MMESH * mesh)
 {
@@ -216,7 +223,153 @@ void cDlgOptions::create_hardpoints(HTREEITEM item)
 		}
 	}
 }
+struct vwMesh {
+	int start_vertex, end_vertex, num_triangles;
+};
 
+struct Line {
+	int v1, v2;
+};
+
+void check_if_line_exists_and_add_if_not(struct Line *lines, int *num_lines, struct Line new_line) {
+	int i;
+	for (i = 0; i < *num_lines; ++i) {
+		if (((lines[i].v1 == new_line.v1) && (lines[i].v2 == new_line.v2)) || ((lines[i].v1 == new_line.v2) && (lines[i].v2 == new_line.v1)))
+			return;
+	}
+	lines[*num_lines] = new_line;
+	++(*num_lines);
+}
+
+int cDlgOptions::create_vwiredata(HTREEITEM item, MMESH * mesh )
+{
+	
+	FILE * VMeshData_file;
+	HTREEITEM vwiredata = utf->AddNewNode(tree, item, "VWireData");
+
+	// -------------------------------------
+
+	char VMeshLibraryName[200];
+
+	int numb_meshes;
+	int num_triangles;
+	int num_vertices;
+	
+
+	strcpy (VMeshLibraryName, mesh->nname);
+	string sLod = ".lod";
+	sLod += (char)(48 + iLODs);
+	sLod += ".vms";
+	strcat (VMeshLibraryName, sLod.c_str());
+
+	int crc = fl_crc32(VMeshLibraryName);
+		
+	char buffer [1000];
+	int *temp_int = (int *)buffer;
+	float *temp_float = (float *)buffer;
+
+   // Open file to read line from:
+   fopen_s( &VMeshData_file,"___temp.vms","rb");
+   if( VMeshData_file == NULL )
+      exit( 0 );
+
+	struct vwMesh vwmesh;
+	struct Line lines[100000];
+	int num_lines = 0;
+		
+//	find number of meshes, number of triangles and number of vertices
+	fread(buffer,1,8,VMeshData_file);
+	*temp_int = 0;
+	fread(buffer,1,2,VMeshData_file);
+	numb_meshes = *temp_int;
+	fread(buffer,1,2,VMeshData_file);
+	num_triangles = *temp_int / 3;
+	fread(buffer,1,2,VMeshData_file);
+	fread(buffer,1,2,VMeshData_file);
+	num_vertices = *temp_int;
+	
+	
+	
+	//read in first mesh
+	fread(buffer,1,4,VMeshData_file);
+	*temp_int = 0;
+	fread(buffer,1,2,VMeshData_file);
+	vwmesh.start_vertex = *temp_int;
+	fread(buffer,1,2,VMeshData_file);
+	vwmesh.end_vertex = *temp_int;
+	fread(buffer,1,2,VMeshData_file);
+	vwmesh.num_triangles = *temp_int / 3;
+	fread(buffer,1,2,VMeshData_file);
+
+		for (int j = 0; j < vwmesh.num_triangles; ++j) 
+		{
+			int v0, v1, v2;
+			struct Line temp_line;
+			*temp_int = 0;
+			fread(buffer,1,2,VMeshData_file);
+			v0 = *temp_int;
+			fread(buffer,1,2,VMeshData_file);
+			v1 = *temp_int;
+			fread(buffer,1,2,VMeshData_file);
+			v2 = *temp_int;
+			temp_line.v1 = v0;
+			temp_line.v2 = v1;
+			check_if_line_exists_and_add_if_not(lines, &num_lines, temp_line);
+			temp_line.v1 = v1;
+			temp_line.v2 = v2;
+			check_if_line_exists_and_add_if_not(lines, &num_lines, temp_line);
+			temp_line.v1 = v2;
+			temp_line.v2 = v0;
+			check_if_line_exists_and_add_if_not(lines, &num_lines, temp_line);
+			}
+	
+		fclose(VMeshData_file);
+
+		char sVWireOut[200];
+		strcpy (sVWireOut,mesh->nname);
+		string sVWLod = ".lod";
+		sVWLod += (char)(48 + iLODs);
+		sVWLod += ".vwd";
+		strcat (sVWireOut, sVWLod.c_str());
+		
+		FILE * file;
+		file = _tfopen (sVWireOut, "wb");
+
+		*temp_int = 16;
+		fwrite(buffer,4, 1, file);
+		*temp_int = crc;
+		fwrite(buffer,4, 1, file);
+		*temp_int = 0;
+		fwrite(buffer,2, 1, file);
+		*temp_int = num_vertices;
+		fwrite(buffer,2, 1, file);
+		*temp_int = num_lines * 2;
+		fwrite(buffer,2, 1, file);
+		*temp_int = num_vertices;
+		fwrite(buffer,2, 1, file);
+		
+		//write lines
+		for (int i = 0; i < num_lines; ++i) 
+		{
+			*temp_int = lines[i].v1;
+			fwrite(buffer,2, 1, file);
+			*temp_int = lines[i].v2;
+			fwrite(buffer,2, 1, file);
+		}
+		fclose(file);
+
+		FILE * VWireData_file = fopen (sVWireOut,"rb");
+		fseek (VWireData_file, 0, SEEK_END);
+		int VWireData_file_size = ftell(VWireData_file);
+		fseek (VWireData_file, 0, SEEK_SET);
+		char * VWireData_file_data = (char *)malloc (VWireData_file_size + 4);
+		fread (VWireData_file_data + 4, VWireData_file_size, 1, VWireData_file);
+		*(int *)VWireData_file_data = VWireData_file_size;	// first 4 bytes is the size, data comes afterwards
+		tree->SetItemData(vwiredata, (DWORD_PTR)VWireData_file_data);
+		fclose(VWireData_file);
+	
+ return 1;
+}
 int cDlgOptions::num_meshes()
 {
 	// iterate mesh list, calculate number of meshes
@@ -266,10 +419,13 @@ END_MESSAGE_MAP()
 // OnInitDialog
 //======================================================================
 IGameNode *pMesh;
+sNodeInfo * snode;
 BOOL cDlgOptions::OnInitDialog() 
 {
 	CDialog::OnInitDialog();
     CDialog::CenterWindow();
+
+	GLIST *glist;
 
 /*    m_nFlags = eMeshes | eMaterials;
     m_sPathName.Empty();
@@ -277,23 +433,36 @@ BOOL cDlgOptions::OnInitDialog()
     CheckDlgButton (IDC_BTMESHES, TRUE);
     CheckDlgButton (IDC_BTMATERIALS, TRUE);
 */	
-
+	struct _finddata64i32_t c_file;
+	intptr_t hFile;
 
 
 	tree = (CTreeCtrl *) GetDlgItem(IDC_TREE);
 	utf = new UTF();
+	
+	list<GLIST *>::iterator GL;
 
-	// first mesh
 	list<MMESH *>::iterator i = meshList->begin();
 	MMESH * mesh = *i;
 
 	// -------------------------------------
+	char sVWireOut[200];
+	strcpy (sVWireOut,mesh->nname);
+	string sVWLod = ".lod";
+	sVWLod += (char)(48 + iLODs);
+	sVWLod += ".vwd";
+	strcat (sVWireOut, sVWLod.c_str());
+	string sLod2 = ".lod";
+	sLod2 += (char)(48 + iLODs);
 	char VMeshLibraryName[200];
 	strcpy (VMeshLibraryName, mesh->nname);
 	string sLod = ".lod";
 	sLod += (char)(48 + iLODs);
 	sLod += ".vms";
 	strcat (VMeshLibraryName, sLod.c_str());
+	string sObjLod = ".lod";
+	sObjLod += (char)(48 + iLODs);
+	sObjLod += ".3db";
 
 	HTREEITEM root = utf->AddNewNode(tree, NULL, "\\");
 		HTREEITEM VMeshLibrary = utf->AddNewNode(tree, root, "VMeshLibrary");
@@ -310,16 +479,14 @@ BOOL cDlgOptions::OnInitDialog()
 					tree->SetItemData(VMeshData, (DWORD_PTR)VMeshData_file_data);
 					fclose(VMeshData_file);
 
-					unlink ("___temp.vms");
-
 		HTREEITEM Cmpnd = utf->AddNewNode(tree, root, "Cmpnd");
 			HTREEITEM Cmpnd_root = utf->AddNewNode(tree, Cmpnd, "Root");
 				HTREEITEM CR_filename = utf->AddNewNode(tree, Cmpnd_root, "File name");
 					// set data entry for "File name"
-					char * CR_filename_data = (char *) malloc ( strlen(mesh->nname) + strlen (".3db") + 1 + 4);
+					char * CR_filename_data = (char *) malloc ( strlen(mesh->nname) + strlen(sObjLod.c_str())+ 1 + 9);
 					strcpy (CR_filename_data + 4, mesh->nname);	// 4 = int position at beginning
-					strcat (CR_filename_data + 4, ".3db");
-					*(size_t *)CR_filename_data = strlen(mesh->nname) + 4 + 1;	// 4 = strlen(".3db") 1 = '\0'
+					strcat (CR_filename_data + 9, sObjLod.c_str());
+					*(size_t *)CR_filename_data = strlen(mesh->nname) + 9 + 1;	// 4 = strlen(".3db") 1 = '\0'
 					tree->SetItemData(CR_filename, (DWORD_PTR)CR_filename_data);
 				HTREEITEM CR_index = utf->AddNewNode(tree, Cmpnd_root, "Index");
 					// set data entry for "Index"
@@ -336,29 +503,61 @@ BOOL cDlgOptions::OnInitDialog()
 					tree->SetItemData(CR_objname, (DWORD_PTR)CR_objname_data);
 
 		char objName[200];
-		strcpy (objName, mesh->nname);
-		strcat (objName, ".3db");
-		HTREEITEM obj1 = utf->AddNewNode(tree, root, objName);
-			HTREEITEM hardpoints = utf->AddNewNode(tree, obj1, "Hardpoints");
-			create_hardpoints (hardpoints);
-			HTREEITEM multilevel = utf->AddNewNode(tree, obj1, "MultiLevel");
+		char VMeshRefFile[200];
+
+		if( (hFile = _findfirst( "*.lod", &c_file )) == -1L )
+			 printf( "No *.txt files in current directory" );
+		else
+		   {	
+			 glist = new GLIST;	memset(glist, 0, sizeof(GLIST));
+        int i = 1;
+			do 
+			{			
+            printf( " File %d = %s ",i,c_file.name);
+			glist->glname = c_file.name;
+			i++;
+
+			strcpy(VMeshRefFile, glist->glname);
+			//string sVMeshRef = ".lod";
+			//sVMeshRef += (char)(48+iLODs);
+			//sVMeshRef += ".vmr";
+			//strcat (VMeshRefFile, sVMeshRef.c_str());
+
+			strcpy (objName, glist->glname);
+			strcat (objName, ".3db");
+			HTREEITEM obj1 = utf->AddNewNode(tree, root, objName);
+			//HTREEITEM vmeshwire = utf->AddNewNode(tree, obj1, "VMeshWire");
+			//create_vwiredata(vmeshwire, mesh);
+
+				HTREEITEM hardpoints = utf->AddNewNode(tree, obj1, "Hardpoints");
+				create_hardpoints (hardpoints);
+				HTREEITEM multilevel = utf->AddNewNode(tree, obj1, "MultiLevel");
 				string sLevel = "Level";
-				sLevel += (char)(48 + iLODs);
-				HTREEITEM level0 = utf->AddNewNode(tree, multilevel, (char*)sLevel.c_str());
-					HTREEITEM VMeshPart = utf->AddNewNode(tree, level0, "VMeshPart");
-						HTREEITEM VMeshRef = utf->AddNewNode(tree, VMeshPart, "VMeshRef");
+					sLevel += (char)(48 + iLODs);
+					HTREEITEM level0 = utf->AddNewNode(tree, multilevel, (char*)sLevel.c_str());
+						HTREEITEM VMeshPart = utf->AddNewNode(tree, level0, "VMeshPart");
+							HTREEITEM VMeshRef = utf->AddNewNode(tree, VMeshPart, "VMeshRef");
 
-						FILE * VMeshRef_file = fopen ("___temp.vmref","rb");
-						fseek (VMeshRef_file, 0, SEEK_END);
-						int VMeshRef_file_size = ftell(VMeshRef_file);
-						fseek (VMeshRef_file, 0, SEEK_SET);
-						char * VMeshRef_file_data = (char *)malloc (VMeshRef_file_size + 4);
-						fread (VMeshRef_file_data + 4, VMeshRef_file_size, 1, VMeshRef_file);
-						*(int *)VMeshRef_file_data = VMeshRef_file_size;	// first 4 bytes is the size, data comes afterwards
-						tree->SetItemData(VMeshRef, (DWORD_PTR)VMeshRef_file_data);
-						fclose(VMeshRef_file);
 
-						unlink ("___temp.vmref");
+							FILE * VMeshRef_file = fopen (VMeshRefFile,"rb");
+							fseek (VMeshRef_file, 0, SEEK_END);
+							int VMeshRef_file_size = ftell(VMeshRef_file);
+							fseek (VMeshRef_file, 0, SEEK_SET);
+							char * VMeshRef_file_data = (char *)malloc (VMeshRef_file_size + 4);
+							fread (VMeshRef_file_data + 4, VMeshRef_file_size, 1, VMeshRef_file);
+							*(int *)VMeshRef_file_data = VMeshRef_file_size;	// first 4 bytes is the size, data comes afterwards
+							tree->SetItemData(VMeshRef, (DWORD_PTR)VMeshRef_file_data);
+							fclose(VMeshRef_file);
+
+							unlink (VMeshRefFile);
+							} 
+							 while( _findnext( hFile, &c_file ) == 0 );
+							 _findclose( hFile );
+							}
+							unlink ("___temp.verts");
+							unlink (sVWireOut);
+							unlink ("___temp.vms");
+							unlink ("___temp.vmref");
 							// basic VMeshRef (single component with multiple meshes)
 							//int * VMeshRef_data = (int *) malloc (60 + 4);
 							//VMeshRef_data[0] = 60;
@@ -400,6 +599,10 @@ void cDlgOptions::OnCancel()
 
 // CMP exporter methods here
 
+void cDlgOptions::SetGroup(list<GLIST *> * nodeList)
+{
+	this->nodeList = nodeList;
+}
 void cDlgOptions::SetMesh(list<MMESH *> * meshList)
 {
 	this->meshList = meshList;

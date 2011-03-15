@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "resource.h"
 #include "DlgOptions.h"
-#include "fstream.h"
+#include <fstream>
 #include <iostream>
 #include <vector>
 #include <wchar.h>
@@ -418,14 +418,16 @@ END_MESSAGE_MAP()
 //======================================================================
 // OnInitDialog
 //======================================================================
+
 IGameNode *pMesh;
 sNodeInfo * snode;
+
 BOOL cDlgOptions::OnInitDialog() 
 {
 	CDialog::OnInitDialog();
     CDialog::CenterWindow();
 
-	GLIST *glist;
+
 
 /*    m_nFlags = eMeshes | eMaterials;
     m_sPathName.Empty();
@@ -433,9 +435,6 @@ BOOL cDlgOptions::OnInitDialog()
     CheckDlgButton (IDC_BTMESHES, TRUE);
     CheckDlgButton (IDC_BTMATERIALS, TRUE);
 */	
-	struct _finddata64i32_t c_file;
-	intptr_t hFile;
-
 
 	tree = (CTreeCtrl *) GetDlgItem(IDC_TREE);
 	utf = new UTF();
@@ -460,9 +459,7 @@ BOOL cDlgOptions::OnInitDialog()
 	sLod += (char)(48 + iLODs);
 	sLod += ".vms";
 	strcat (VMeshLibraryName, sLod.c_str());
-	string sObjLod = ".lod";
-	sObjLod += (char)(48 + iLODs);
-	sObjLod += ".3db";
+
 
 	HTREEITEM root = utf->AddNewNode(tree, NULL, "\\");
 		HTREEITEM VMeshLibrary = utf->AddNewNode(tree, root, "VMeshLibrary");
@@ -483,10 +480,10 @@ BOOL cDlgOptions::OnInitDialog()
 			HTREEITEM Cmpnd_root = utf->AddNewNode(tree, Cmpnd, "Root");
 				HTREEITEM CR_filename = utf->AddNewNode(tree, Cmpnd_root, "File name");
 					// set data entry for "File name"
-					char * CR_filename_data = (char *) malloc ( strlen(mesh->nname) + strlen(sObjLod.c_str())+ 1 + 9);
+					char * CR_filename_data = (char *) malloc ( strlen(mesh->nname) + strlen (".3db") + 1 + 4);
 					strcpy (CR_filename_data + 4, mesh->nname);	// 4 = int position at beginning
-					strcat (CR_filename_data + 9, sObjLod.c_str());
-					*(size_t *)CR_filename_data = strlen(mesh->nname) + 9 + 1;	// 4 = strlen(".3db") 1 = '\0'
+					strcat (CR_filename_data + 4, ".3db");
+					*(size_t *)CR_filename_data = strlen(mesh->nname) + 4 + 1;	// 4 = strlen(".3db") 1 = '\0'
 					tree->SetItemData(CR_filename, (DWORD_PTR)CR_filename_data);
 				HTREEITEM CR_index = utf->AddNewNode(tree, Cmpnd_root, "Index");
 					// set data entry for "Index"
@@ -503,27 +500,22 @@ BOOL cDlgOptions::OnInitDialog()
 					tree->SetItemData(CR_objname, (DWORD_PTR)CR_objname_data);
 
 		char objName[200];
+		char PartName[200];
+		char Part_Name[200];
 		char VMeshRefFile[200];
 
-		if( (hFile = _findfirst( "*.lod", &c_file )) == -1L )
-			 printf( "No *.txt files in current directory" );
-		else
-		   {	
-			 glist = new GLIST;	memset(glist, 0, sizeof(GLIST));
-        int i = 1;
-			do 
-			{			
-            printf( " File %d = %s ",i,c_file.name);
-			glist->glname = c_file.name;
-			i++;
+		for (std::list<string>::iterator i = lstNames.begin();i != lstNames.end(); ++i)
+			{
 
-			strcpy(VMeshRefFile, glist->glname);
-			//string sVMeshRef = ".lod";
-			//sVMeshRef += (char)(48+iLODs);
-			//sVMeshRef += ".vmr";
-			//strcat (VMeshRefFile, sVMeshRef.c_str());
+			string nameInList = *i;
+			strcpy (objName, nameInList.c_str());
+			strcpy (VMeshRefFile, nameInList.c_str());
+			string sVMeshRef = ".lod";
+			sVMeshRef += (char)(48+iLODs);
+			sVMeshRef += ".vmr";
+			strcat (VMeshRefFile, sVMeshRef.c_str());
 
-			strcpy (objName, glist->glname);
+			//strcpy (objName, glist->glname);
 			strcat (objName, ".3db");
 			HTREEITEM obj1 = utf->AddNewNode(tree, root, objName);
 			//HTREEITEM vmeshwire = utf->AddNewNode(tree, obj1, "VMeshWire");
@@ -548,12 +540,50 @@ BOOL cDlgOptions::OnInitDialog()
 							*(int *)VMeshRef_file_data = VMeshRef_file_size;	// first 4 bytes is the size, data comes afterwards
 							tree->SetItemData(VMeshRef, (DWORD_PTR)VMeshRef_file_data);
 							fclose(VMeshRef_file);
-
+						
 							unlink (VMeshRefFile);
-							} 
-							 while( _findnext( hFile, &c_file ) == 0 );
-							 _findclose( hFile );
-							}
+		}
+		//Do other object parts here
+		lstNames.pop_front(); //delete first node
+
+		
+		int nParts = 0;
+		for (std::list<string>::iterator i = lstNames.begin();i != lstNames.end(); ++i)
+		{
+			string nameInList = *i;
+			strcpy (PartName, nameInList.c_str());
+			string sPart_Name = "Part_";
+			strcpy (Part_Name, sPart_Name.c_str());
+			strcat (Part_Name, nameInList.c_str());
+
+			nParts ++;
+			//HTREEITEM Cmpnd = utf->AddNewNode(tree, root, "Cmpnd");
+			HTREEITEM Cmpnd_root = utf->AddNewNode(tree, Cmpnd, Part_Name);
+				HTREEITEM CR_filename = utf->AddNewNode(tree, Cmpnd_root, "File name");
+					// set data entry for "File name"
+					char * CR_filename_data = (char *) malloc ( strlen(PartName) + strlen (".3db") + 1 + 4);
+					strcpy (CR_filename_data + 4, PartName);	// 4 = int position at beginning
+					strcat (CR_filename_data + 4, ".3db");
+					*(size_t *)CR_filename_data = strlen(PartName) + 4 + 1;	// 4 = strlen(".3db") 1 = '\0'
+					tree->SetItemData(CR_filename, (DWORD_PTR)CR_filename_data);
+				HTREEITEM CR_index = utf->AddNewNode(tree, Cmpnd_root, "Index");
+					// set data entry for "Index"
+					int * CR_index_data = (int *)malloc (2*sizeof(int) + 4);
+					CR_index_data[0] = 8;	// size = 8 (2 integers)
+					CR_index_data[1] = nParts;
+					CR_index_data[2] = 0;
+					tree->SetItemData(CR_index, (DWORD_PTR)CR_index_data);
+				HTREEITEM CR_objname = utf->AddNewNode(tree, Cmpnd_root, "Object name");
+					// set data entry for "Object name"
+					char * CR_objname_data = (char *) malloc ( strlen(PartName) + 1 + 4 );
+					strcpy (CR_objname_data + 4, PartName);
+					*(size_t *)CR_objname_data = strlen(PartName) + 1;
+					tree->SetItemData(CR_objname, (DWORD_PTR)CR_objname_data);
+
+
+
+		}
+
 							unlink ("___temp.verts");
 							unlink (sVWireOut);
 							unlink ("___temp.vms");
@@ -569,10 +599,11 @@ BOOL cDlgOptions::OnInitDialog()
 							//VMeshRef_data[4] = 0;
 							//VMeshRef_data[5] = num_meshes() << 16;
 
-
+							
 	
 	utf->Save(tree, fileName);
 	// -------------------------------------
+	lstNames.clear();
 
 	return TRUE;
 }

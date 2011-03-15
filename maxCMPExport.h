@@ -14,9 +14,13 @@
 #ifndef __maxCMPExport__H
 #define __maxCMPExport__H
 
+
 #include "stdafx.h"
 
+
 #if _MSC_VER > 1000
+
+
 #pragma once
 #endif // _MSC_VER > 1000
 
@@ -43,6 +47,8 @@
 #define CFGFILENAME		_T("maxCMPExport.CFG")
 
 typedef unsigned int uint;
+
+
 
 enum EXPORT_CMPNT_OPTION
 {
@@ -116,6 +122,7 @@ struct StartVertArray
 {
 	short StartVertNumber;
 	short EndVertNumber;
+	short RefVertNum;
 };
 struct SplineVert
 {
@@ -333,5 +340,7 @@ extern PlugPanel thePlugPanel;
 extern TCHAR *GetString(int id);
 
 extern HINSTANCE hInstance;
+
+
 
 #endif

@@ -36,6 +36,8 @@ static BOOL exportSelected;
 #define maxCMPExport_CLASS_ID	Class_ID(0xaf82ab88, 0xadd6b246)
 #define ID_GROUP				_T("*GROUP")
 
+
+
 // FL CRC32 table
 static unsigned int flcrc32tbl[] = {
 	0x0,	0x9073096,	0x120E612C,	0x1B0951BA,	
@@ -169,7 +171,8 @@ private:
 	Interface*	ip;
 };
 
-class maxCMPExportClassDesc : public ClassDesc2 {
+class maxCMPExportClassDesc : public ClassDesc2 
+{
 public:
 	int 			IsPublic() { return TRUE; }
 	void *			Create(BOOL loading = FALSE) { return new maxCMPExport(); }
@@ -257,6 +260,8 @@ list<MMESH *> * meshList;
 list<GMMESH *> * groupList;
 list<GLIST *> * nodeList;
 
+std::list<string> lstNames;
+
 int CMaxPlugInApp::ExitInstance() 
 {	return CWinApp::ExitInstance();
 }maxCMPExport::maxCMPExport()
@@ -311,6 +316,7 @@ int maxCMPExport::ExtCount()
 {	float len = sqrt(src->vec[0] * src->vec[0] +  src->vec[1] * src->vec[1] + src->vec[2] * src->vec[2]);
 		dest->vec = src->vec / len;
 }
+
 int iLODs;
 
 IGameMaterial *pMaterial;
@@ -501,12 +507,16 @@ BOOL maxCMPExport::ExportGroup(IGameNode * pMesh)
 				strcpy(VMeshRefFile, pMesh->GetName());
 				string sVMeshRef = ".lod";
 				sVMeshRef += (char)(48+iLODs);
-				//sVMeshRef += ".vmr";
+				sVMeshRef += ".vmr";
 				strcat (VMeshRefFile, sVMeshRef.c_str());
+
+
 
 				if(pModel->GetIGameType()==IGameObject::IGAME_HELPER)
 				{
 						groupList = new list<GMMESH*>;
+
+					lstNames.push_back(pMesh->GetName());
 					
 					for( int nChilds=0; nChilds<pMesh->GetChildCount(); nChilds++)
 					{
@@ -524,7 +534,6 @@ BOOL maxCMPExport::ExportGroup(IGameNode * pMesh)
 
 							groupList->push_back(gmesh);			
 							IGameMesh *pChild = (IGameMesh*)gModel;
-
 
 
 							int gnTris = pChild->GetNumberOfFaces();
@@ -546,7 +555,6 @@ BOOL maxCMPExport::ExportGroup(IGameNode * pMesh)
 									Point3 vertice, normal, binormal, tangent, color, BoundingBoxMaxx, BoundingBoxMinx, BoundingBoxMaxy, BoundingBoxMiny, BoundingBoxMaxz, BoundingBoxMinz;
 									Point2 uv, uvfl;
 									Box3 Bounds;
-									//float BoundingBoxMaxX = 1.0f;
 									
 									pChild->GetVertex(pTriangle->vert[i], vertice);
 									pChild->GetTexVertex(pTriangle->texCoord[i], uv);
@@ -557,8 +565,8 @@ BOOL maxCMPExport::ExportGroup(IGameNode * pMesh)
 									for(int gnVertB=0; gnVertB < gnVert; gnVertB++)
 									{
 										if(gmesh->gv[gnVertB].gvert == vertice &&
-												gmesh->gv[gnVertB].gnormal == normal &&
-												gmesh->gv[gnVertB].guv == uv)
+										   gmesh->gv[gnVertB].gnormal == normal &&
+										   gmesh->gv[gnVertB].guv == uv)
 										{
 											// match!
 											// assign triangle corner to found vertex index
@@ -571,7 +579,6 @@ BOOL maxCMPExport::ExportGroup(IGameNode * pMesh)
 									if(bDuplicate)
 									continue;
 									
-
 									gmesh->gt[pTriangle->meshFaceIndex].gvertice[i] = gnVert;
 
 									gmesh->gv[gnVert].gvert = vertice;
@@ -642,15 +649,11 @@ BOOL maxCMPExport::ExportGroup(IGameNode * pMesh)
 							vmeshrefb.Center_Z = vCenter.z;
 							Point3 BRadius = Bounds.Width();
 							vmeshrefb._Radius = BRadius.FLength();
-
 						}
 					}
 				}
 			}
-	
 			StartVertArray SVarray; memset(&SVarray, 0, sizeof(SVarray));
-			
-
 
 			int vertnum = 0;
 			file2 = _tfopen (VMeshRefFile, "wb");
@@ -665,6 +668,7 @@ BOOL maxCMPExport::ExportGroup(IGameNode * pMesh)
 			vmeshrefb.Num_Index += (*G)->gnTris * 3;
 			SVarray.StartVertNumber = hStartVert;
 			SVarray.EndVertNumber = hStartVert += (*G)->gnVerts-1;
+			SVarray.RefVertNum = (*G)->gnTris * 3;
 			fwrite(&SVarray, sizeof(SVarray), 1, file3);
 			hStartVert += +1;
 			startgvert += (*G)->gnVerts;
@@ -674,21 +678,17 @@ BOOL maxCMPExport::ExportGroup(IGameNode * pMesh)
 			vmeshrefb.VMesh_LibId = fl_crc32(VMeshLibraryName);
 			vmeshrefb.Start_Mesh = new_Start_Mesh;
 			vmeshrefb.Num_Meshes = vmeshref.NumMeshes;
-
-			
-	
-		
+			vmeshref.StartMesh = new_Start_Mesh += vmeshref.NumMeshes;
 		}
 		fwrite(&vmeshrefb, sizeof(vmeshrefb), 1, file2);
 		fclose (file2);
 		for (G = groupList->begin(); G != groupList->end(); G++)
 		{
-		new_Start_Mesh = vmeshref.NumMeshes;
+		new_Start_Mesh = vmeshref.StartMesh;
 		new_start_vert += (*G)->gnVerts;
 		new_Start_Index += (*G)->gnTris * 3;
 		}
 	}
-
 	nMeshes->ReleaseIGame();
 	fclose (file3);
 
@@ -698,7 +698,7 @@ BOOL maxCMPExport::ExportGroup(IGameNode * pMesh)
 	FILE *file;
 
 	file = _tfopen ("___temp.vms", "wb");
-		if (!file)
+	if (!file)
 	{
 		MessageBox(0,"Could not open export file for some reason, check if it's not being used by another application!","Error exporting VMS file",MB_ICONERROR);
 		return -1;
@@ -737,7 +737,8 @@ BOOL maxCMPExport::ExportGroup(IGameNode * pMesh)
 		vmesh.start_vert_number = *temp_int;
 		fread(buffer,1,2,file3);
 		vmesh.end_vert_number = *temp_int;
-		vmesh.number_of_vert_references = (*j)->nTris * 3;
+		fread(buffer,1,2,file3);
+		vmesh.number_of_vert_references = *temp_int;//(*j)->nTris * 3;
 		vmesh.padding = 0xcc;
 		fwrite(&vmesh, sizeof(vmesh), 1, file);
 

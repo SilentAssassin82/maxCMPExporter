@@ -9,9 +9,11 @@
 
 #include "maxCMPExport.h"
 
+
 #include <list>
 using namespace std;
 
+extern std::list<string> lstNames;
 //
 // option flags
 //
@@ -52,6 +54,8 @@ public:
 	int iLODs;
 
 public:
+
+	
 	CTreeCtrl * tree;
 	UTF * utf;
     CString GetPathName ();

@@ -48,7 +48,10 @@
 
 typedef unsigned int uint;
 
-
+struct FileName_
+{
+	const TCHAR * File_Name;
+};
 
 enum EXPORT_CMPNT_OPTION
 {
@@ -127,6 +130,10 @@ struct StartVertArray
 struct SplineVert
 {
 	Point3 SVert;
+};
+struct mSplineKnot
+{
+	unsigned short SVertice[3];
 };
 struct VMeshRefBounds
 {
@@ -251,9 +258,10 @@ struct MSpline
 {
 	SplineVert * sv;	// vmsVert array
 	// vmsTri array
+	mSplineKnot * spk;
 	TCHAR* sname;
 	int nSVerts;
-	uint Num_Splines;
+	int Num_Splines;
 	// mesh name
 
 	//IGameMesh *pMesh; // 3ds max mesh object

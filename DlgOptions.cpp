@@ -241,26 +241,40 @@ void check_if_line_exists_and_add_if_not(struct Line *lines, int *num_lines, str
 	++(*num_lines);
 }
 
-int cDlgOptions::create_vwiredata(HTREEITEM item, MMESH * mesh )
+int cDlgOptions::create_vwiredata(HTREEITEM item, const TCHAR* WireDat)
 {
 	
+
+	//Pretty much the old make wire with some changes to suite my neads
+	//I know cheap bastard, I had intended to create a wireframe using 
+	//splines but still havn't found a way of doing this.
+
 	FILE * VMeshData_file;
 	HTREEITEM vwiredata = utf->AddNewNode(tree, item, "VWireData");
 
 	// -------------------------------------
 
 	char VMeshLibraryName[200];
+	char VWireIn[200];
 
 	int numb_meshes;
 	int num_triangles;
 	int num_vertices;
-	
 
-	strcpy (VMeshLibraryName, mesh->nname);
+	std::list<string>::iterator i = lstNames.begin();
+	string nameInList = *i;
+		
+
+	strcpy (VMeshLibraryName, nameInList.c_str());
 	string sLod = ".lod";
 	sLod += (char)(48 + iLODs);
 	sLod += ".vms";
 	strcat (VMeshLibraryName, sLod.c_str());
+	strcpy (VWireIn,WireDat);
+	string sWLod = ".lod";
+	sWLod += (char)(48 + iLODs);
+	sWLod += ".vwd";
+	strcat (VWireIn, sWLod.c_str());
 
 	int crc = fl_crc32(VMeshLibraryName);
 		
@@ -269,7 +283,7 @@ int cDlgOptions::create_vwiredata(HTREEITEM item, MMESH * mesh )
 	float *temp_float = (float *)buffer;
 
    // Open file to read line from:
-   fopen_s( &VMeshData_file,"___temp.vms","rb");
+   fopen_s( &VMeshData_file,VWireIn,"rb");
    if( VMeshData_file == NULL )
       exit( 0 );
 
@@ -305,7 +319,7 @@ int cDlgOptions::create_vwiredata(HTREEITEM item, MMESH * mesh )
 		{
 			int v0, v1, v2;
 			struct Line temp_line;
-			*temp_int = 0;
+			*temp_int=0;
 			fread(buffer,1,2,VMeshData_file);
 			v0 = *temp_int;
 			fread(buffer,1,2,VMeshData_file);
@@ -326,10 +340,10 @@ int cDlgOptions::create_vwiredata(HTREEITEM item, MMESH * mesh )
 		fclose(VMeshData_file);
 
 		char sVWireOut[200];
-		strcpy (sVWireOut,mesh->nname);
+		strcpy (sVWireOut,WireDat);
 		string sVWLod = ".lod";
 		sVWLod += (char)(48 + iLODs);
-		sVWLod += ".vwd";
+		sVWLod += ".vwd2";
 		strcat (sVWireOut, sVWLod.c_str());
 		
 		FILE * file;
@@ -339,7 +353,7 @@ int cDlgOptions::create_vwiredata(HTREEITEM item, MMESH * mesh )
 		fwrite(buffer,4, 1, file);
 		*temp_int = crc;
 		fwrite(buffer,4, 1, file);
-		*temp_int = 0;
+		*temp_int = vwmesh.start_vertex;
 		fwrite(buffer,2, 1, file);
 		*temp_int = num_vertices;
 		fwrite(buffer,2, 1, file);
@@ -367,6 +381,8 @@ int cDlgOptions::create_vwiredata(HTREEITEM item, MMESH * mesh )
 		*(int *)VWireData_file_data = VWireData_file_size;	// first 4 bytes is the size, data comes afterwards
 		tree->SetItemData(vwiredata, (DWORD_PTR)VWireData_file_data);
 		fclose(VWireData_file);
+		unlink (sVWireOut);
+		unlink (VWireIn);
 	
  return 1;
 }
@@ -421,20 +437,28 @@ END_MESSAGE_MAP()
 
 IGameNode *pMesh;
 sNodeInfo * snode;
+//ExportOptions OptionsDlgExport;
 
 BOOL cDlgOptions::OnInitDialog() 
 {
 	CDialog::OnInitDialog();
     CDialog::CenterWindow();
 
+	//ExportOptions OptionsDlgExport
 
+	//ExportOptions OptionsDlgExport;
 
+	//int iLOD = OptionsDlgExport.iLOD;
 /*    m_nFlags = eMeshes | eMaterials;
     m_sPathName.Empty();
 
     CheckDlgButton (IDC_BTMESHES, TRUE);
     CheckDlgButton (IDC_BTMATERIALS, TRUE);
 */	
+	//ExportOptions::ExportOptions();
+
+	
+
 
 	tree = (CTreeCtrl *) GetDlgItem(IDC_TREE);
 	utf = new UTF();
@@ -443,7 +467,7 @@ BOOL cDlgOptions::OnInitDialog()
 
 	list<MMESH *>::iterator i = meshList->begin();
 	MMESH * mesh = *i;
-
+	
 	// -------------------------------------
 	char sVWireOut[200];
 	strcpy (sVWireOut,mesh->nname);
@@ -503,7 +527,9 @@ BOOL cDlgOptions::OnInitDialog()
 		char PartName[200];
 		char Part_Name[200];
 		char VMeshRefFile[200];
+		char WireDat[200];
 
+		//Use the lstNames to create any sub objects in the model
 		for (std::list<string>::iterator i = lstNames.begin();i != lstNames.end(); ++i)
 			{
 
@@ -514,13 +540,18 @@ BOOL cDlgOptions::OnInitDialog()
 			sVMeshRef += (char)(48+iLODs);
 			sVMeshRef += ".vmr";
 			strcat (VMeshRefFile, sVMeshRef.c_str());
+			strcpy (WireDat, nameInList.c_str());
 
 			//strcpy (objName, glist->glname);
 			strcat (objName, ".3db");
 			HTREEITEM obj1 = utf->AddNewNode(tree, root, objName);
-			//HTREEITEM vmeshwire = utf->AddNewNode(tree, obj1, "VMeshWire");
-			//create_vwiredata(vmeshwire, mesh);
 
+			// If we want a wireframe it's added here
+			if(sWire==1)
+			{
+			HTREEITEM vmeshwire = utf->AddNewNode(tree, obj1, "VMeshWire");
+			create_vwiredata(vmeshwire,(char*) WireDat);
+			}
 				HTREEITEM hardpoints = utf->AddNewNode(tree, obj1, "Hardpoints");
 				create_hardpoints (hardpoints);
 				HTREEITEM multilevel = utf->AddNewNode(tree, obj1, "MultiLevel");
@@ -585,7 +616,7 @@ BOOL cDlgOptions::OnInitDialog()
 		}
 
 							unlink ("___temp.verts");
-							unlink (sVWireOut);
+							//unlink (sVWireOut);
 							unlink ("___temp.vms");
 							unlink ("___temp.vmref");
 							// basic VMeshRef (single component with multiple meshes)
@@ -653,7 +684,10 @@ void cDlgOptions::SetLODs(int lod_setting)
 {
 	iLODs = lod_setting;
 }
-
+void cDlgOptions::SetWire(int wire_setting)
+{
+	sWire = wire_setting;
+}
 //======================================================================
 // OnOK
 //======================================================================

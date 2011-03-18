@@ -29,11 +29,10 @@
 #define IDC_CMPNT_NORELOCATE            1033
 #define IDC_COMBO1                      1039
 #define IDC_COMBOBOXEX1                 1040
-#define IDC_CHECK1                      1041
-#define IDC_VCOLOUR                     1041
-#define IDC_CHECK2                      1042
 #define IDC_VCOLOR                      1042
 #define IDC_TAB1                        1044
+#define IDC_CHECK1                      1045
+#define IDC_WIREFRAME                   1045
 #define IDC_BTMESHES                    2000
 #define IDD_OPTIONS                     2000
 #define IDC_BTMATERIALS                 2001
@@ -46,7 +45,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        116
 #define _APS_NEXT_COMMAND_VALUE         40002
-#define _APS_NEXT_CONTROL_VALUE         1045
+#define _APS_NEXT_CONTROL_VALUE         1046
 #define _APS_NEXT_SYMED_VALUE           105
 #endif
 #endif

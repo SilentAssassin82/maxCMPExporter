@@ -213,6 +213,7 @@ struct GroupA
 };
 struct ConsFix
 {
+	Point3 OriginXYZ;
 	uint cfParent;
 	uint cfChild;
 	float OriginX;

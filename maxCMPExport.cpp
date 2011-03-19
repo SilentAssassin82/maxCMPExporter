@@ -141,6 +141,7 @@ public:
 	void			ShowAbout(HWND hWnd);		// Show DLL's "About..." box
 	void			ShowOptions(HWND hWnd);
 
+
 	void ExportNodeInfo(IGameNode * pMesh, const TCHAR *name);
 	BOOL ExportGroup(IGameNode * pMesh, const TCHAR* name);
 	BOOL ExportRootMesh(IGameNode * pMesh, const TCHAR *name);
@@ -329,6 +330,7 @@ void normalize (VECTOR * dest, VECTOR * src)
 {	float len = sqrt(src->vec[0] * src->vec[0] +  src->vec[1] * src->vec[1] + src->vec[2] * src->vec[2]);
 	dest->vec = src->vec / len;
 }
+
 IGameMaterial *pMaterial;
 GroupA* gNode;
 sNodeInfo nodeinfo;
@@ -427,10 +429,13 @@ BOOL maxCMPExport::ExportGroup(IGameNode * pMesh, const TCHAR* name)
 					Point2 uv, uvfl;
 					Box3 Bounds;
 					//float BoundingBoxMaxX = 1.0f;
-					
+
+
 					gMesh->GetVertex(pTriangle->vert[i], vertice);
 					gMesh->GetTexVertex(pTriangle->texCoord[i], uv);
 					gMesh->GetNormal(pTriangle->norm[i], normal);
+
+
 
 					// before assigning the vert, check existing verts if there is a duplicate
 					bool bDuplicate = false;
@@ -450,7 +455,6 @@ BOOL maxCMPExport::ExportGroup(IGameNode * pMesh, const TCHAR* name)
 					}
 					if(bDuplicate)
 					continue;
-					
 
 					mesh->t[pTriangle->meshFaceIndex].vertice[i] = nVert;
 
@@ -490,7 +494,6 @@ BOOL maxCMPExport::ExportGroup(IGameNode * pMesh, const TCHAR* name)
 	Point3 BoundingBoxMaxx, BoundingBoxMinx, BoundingBoxMaxy, BoundingBoxMiny, BoundingBoxMaxz, BoundingBoxMinz;
 	Box3 Bounds;
 
-
 	int bmaxx = 0;
 	list<MMESH *>::iterator j;
 	list<GMMESH *>::iterator G;
@@ -514,6 +517,8 @@ BOOL maxCMPExport::ExportGroup(IGameNode * pMesh, const TCHAR* name)
 	strcat (VMeshLibraryName, sLod.c_str());
 	int ngNodes= nMeshes->GetTopLevelNodeCount();
 	file3 = _tfopen ("___temp.verts", "wb");
+
+	ConsFix * cfix;
 
 	
 	for( int nNodes=0; nNodes<ngNodes; nNodes++)
@@ -594,7 +599,7 @@ BOOL maxCMPExport::ExportGroup(IGameNode * pMesh, const TCHAR* name)
 									bool bDuplicate = false;
 									for(int gnVertB=0; gnVertB < gnVert; gnVertB++)
 									{
-										if(gmesh->gv[gnVertB].gvert == vertice &&
+											if(gmesh->gv[gnVertB].gvert == vertice &&
 												gmesh->gv[gnVertB].gnormal == normal &&
 												gmesh->gv[gnVertB].guv == uv)
 										{

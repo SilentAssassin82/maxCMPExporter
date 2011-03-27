@@ -19,6 +19,24 @@ static char THIS_FILE[] = __FILE__;
 #endif
 
 //std::list<GLIST *> * nodeList;
+struct Part
+{
+    char ParentName[0x40];
+     char ChildName[0x40];
+     float OriginX;
+     float OriginY;
+     float OriginZ;
+     float RotMatXX;
+     float RotMatXY;
+     float RotMatXZ;
+     float RotMatYX;
+     float RotMatYY;
+     float RotMatYZ;
+     float RotMatZX;
+     float RotMatZY;
+     float RotMatZZ;
+};
+std::list<Part*> lstParts;
 
 void cDlgOptions::calculate_position( float * pos, MMESH * mesh)
 {
@@ -402,7 +420,43 @@ int cDlgOptions::num_meshes()
 
 	return nMesh;
 }
-
+/*void write_parts()
+{
+	// Build your parts list.
+	for (std::list<string>::iterator i = lstNames.begin(); i != lstNames.end(); i++)
+	{
+		Part *part = new Part;
+		memset(part, 0, sizeof(Part));
+		strcpy(part->ParentName, "Root"); // replace i->c_str() with whatever the parent name should be
+		strcpy(part->ChildName, i->c_str());
+		part->OriginX = 0.0f; // and do the others.
+		// OriginY, etc...
+		lstParts.push_back(part);
+	}	
+		
+	// This works because the structure above is in exactly the same format as the stuff
+	// in the consfix node.
+	FILE *file = fopen("consfix.bin", "wb");
+	if (file)
+	{
+		for (std::list<Part*>::iterator partiter = lstParts.begin(); partiter != lstParts.end(); partiter++)
+		{
+			// derefering the iterator gives us a pointer to part
+			Part *part = *partiter;
+			fwrite(part, sizeof(Part), 1, file);
+		}
+		fclose(file);
+	}
+	
+	// Delete the memory allocated to the parts and remove the pointers to prevent us accidentally
+	// reusing them.
+	for (std::list<Part*>::iterator partiter = lstParts.begin(); partiter != lstParts.end(); partiter++)
+	{
+		Part *part = *partiter;
+		delete part;					
+	}
+	lstParts.clear();
+}*/
 
 //======================================================================
 // constructor
@@ -573,14 +627,17 @@ BOOL cDlgOptions::OnInitDialog()
 							fclose(VMeshRef_file);
 						
 							unlink (VMeshRefFile);
+
 		}
 		//Do other object parts here
 		lstNames.pop_front(); //delete first node
 
-		
+		int ConsFix = 0;
 		int nParts = 0;
 		for (std::list<string>::iterator i = lstNames.begin();i != lstNames.end(); ++i)
 		{
+			ConsFix = 1;
+			
 			string nameInList = *i;
 			strcpy (PartName, nameInList.c_str());
 			string sPart_Name = "Part_";
@@ -611,8 +668,75 @@ BOOL cDlgOptions::OnInitDialog()
 					*(size_t *)CR_objname_data = strlen(PartName) + 1;
 					tree->SetItemData(CR_objname, (DWORD_PTR)CR_objname_data);
 
+					
 
+		}
 
+		//Thanks to Cannon we have a dummy Cons/Fix so the plugin will work 
+		//till I can figure out these Parent/Child offsets
+		if(ConsFix==1)
+		{
+			for (std::list<string>::iterator i = lstNames.begin(); i != lstNames.end(); i++)
+			{
+				Part *part = new Part;
+				memset(part, 0, sizeof(Part));
+				strcpy(part->ParentName, "Root"); // replace i->c_str() with whatever the parent name should be
+				strcpy(part->ChildName, i->c_str());
+				part->OriginX = 0.0f; // and do the others.
+				part->OriginY = 0.0f;
+				part->OriginZ = 0.0f;
+				part->RotMatXX = 1.0f;
+				part->RotMatXY = 0.0f;
+				part->RotMatXZ = 0.0f;
+				part->RotMatYX = 0.0f;
+				part->RotMatYY = 1.0f;
+				part->RotMatYZ = 0.0f;
+				part->RotMatZX = 0.0f;
+				part->RotMatZY = 0.0f;
+				part->RotMatZZ = 1.0f;
+				// OriginY, etc...
+				lstParts.push_back(part);
+			}	
+				
+			// This works because the structure above is in exactly the same format as the stuff
+			// in the consfix node.
+			FILE *file = fopen("consfix.bin", "wb");
+			if (file)
+			{
+				for (std::list<Part*>::iterator partiter = lstParts.begin(); partiter != lstParts.end(); partiter++)
+				{
+					// derefering the iterator gives us a pointer to part
+					Part *part = *partiter;
+					fwrite(part, sizeof(Part), 1, file);
+				}
+				fclose(file);
+			}
+			
+			// Delete the memory allocated to the parts and remove the pointers to prevent us accidentally
+			// reusing them.
+			for (std::list<Part*>::iterator partiter = lstParts.begin(); partiter != lstParts.end(); partiter++)
+			{
+				Part *part = *partiter;
+				delete part;					
+			}
+			
+
+			HTREEITEM CR_Cons = utf->AddNewNode(tree, Cmpnd, "Cons");
+				HTREEITEM CR_Fix = utf->AddNewNode(tree, CR_Cons, "Fix");
+
+				FILE * ConsFix_File = fopen ("consfix.bin","rb");
+				fseek (ConsFix_File, 0, SEEK_END);
+				int ConsFix_File_size = ftell(ConsFix_File);
+				fseek (ConsFix_File, 0, SEEK_SET);
+				char * ConsFix_File_data = (char *)malloc (ConsFix_File_size + 4);
+				fread (ConsFix_File_data + 4, ConsFix_File_size, 1, ConsFix_File);
+				*(int *)ConsFix_File_data = ConsFix_File_size;	
+				tree->SetItemData(CR_Fix, (DWORD_PTR)ConsFix_File_data);
+				fclose(ConsFix_File);
+				
+				unlink ("consfix.bin");
+
+			lstParts.clear();
 		}
 
 							unlink ("___temp.verts");

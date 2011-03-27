@@ -206,7 +206,7 @@
 				OutputFile="C:\Program Files\Autodesk\3ds Max 9\plugins\maxCMPExport.dle"
 				LinkIncremental="2"
 				SuppressStartupBanner="true"
-				AdditionalLibraryDirectories="&quot;D:\Program Files\Autodesk\3ds Max 9 SDK\maxsdk\lib&quot;"
+				AdditionalLibraryDirectories="&quot;C:\Program Files\Autodesk\3ds Max 9 SDK\maxsdk\lib&quot;;&quot;D:\Program Files\Autodesk\3ds Max 9 SDK\maxsdk\lib&quot;"
 				GenerateManifest="true"
 				IgnoreDefaultLibraryNames=""
 				ModuleDefinitionFile=".\maxCMPExport.def"
